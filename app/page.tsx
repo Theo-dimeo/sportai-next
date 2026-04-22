@@ -119,6 +119,9 @@ function MatchRow({ match, oddsData, selectedBk, selected, onSelect, onAddTicket
         {pred&&!isDone?(<><div className='pred-label'>IA</div><div className='pred-val' style={{color:cc(pred.confidence)}}>{pred.prediction}</div><div className='conf-row'><div className='conf-track'><div className='conf-fill' style={{width:pred.confidence+'%',background:cc(pred.confidence)}}/></div><span className='conf-pct' style={{color:cc(pred.confidence)}}>{pred.confidence}%</span></div></>):isDone?<span style={{fontSize:11,color:'var(--text-disabled)'}}>Terminé</span>:<span style={{fontSize:11,color:'var(--text-disabled)'}}>—</span>}
       </div>
       <div className='col-odds' onClick={e=>e.stopPropagation()}>
+        {/* Indicateur source cotes */}
+        {!isDone&&bkOdds&&<div style={{fontSize:9,color:isSelectedBk?'#00e676':'#ffd700',textAlign:'center',marginBottom:2,fontWeight:700,letterSpacing:.4}}>{isSelectedBk?'● RÉEL':'● DISPO'}</div>}
+        {!isDone&&!bkOdds&&pred&&<div style={{fontSize:9,color:'#4f8ef7',textAlign:'center',marginBottom:2,fontWeight:700,letterSpacing:.4}}>● IA</div>}
         {dispOdds&&!isDone?(['home','draw','away'] as const).map((k,i)=>{
           const odd=dispOdds[k]; if(!odd) return null;
           const best=isBest(k); const isPK=pred?.predictionKey===k;
@@ -745,7 +748,7 @@ export default function Home() {
   const [solde,setSolde] = useState<number>(0);
   const [showBalModal,setShowBalModal] = useState(false);
   const [balInput,setBalInput] = useState('');
-  const [selectedBk,setSelectedBk] = useState('winamax_fr');
+  const [selectedBk,setSelectedBk] = useState(() => { try { return localStorage.getItem('sai_bk')||'winamax_fr'; } catch { return 'winamax_fr'; } });
   const [history,setHistory] = useState<BetEntry[]>([]);
   const [ticket,setTicket] = useState<TicketItem[]>([]);
   const [showTicket,setShowTicket] = useState(false);
@@ -759,12 +762,26 @@ export default function Home() {
   const [openLeagues,setOpenLeagues] = useState<Record<string,boolean>>({});
   const detailRef = useRef<HTMLDivElement>(null);
 
-  // Hydrate from localStorage
+  // Hydrate from localStorage (solde + history seulement — selectedBk est déjà initialisé)
   useEffect(()=>{
     setSolde(parseFloat(localStorage.getItem('sai_solde')??'0'));
-    setSelectedBk(localStorage.getItem('sai_bk')??'winamax_fr');
     setHistory(JSON.parse(localStorage.getItem('sai_hist')??'[]'));
   },[]);
+
+  // Auto-select bookmaker : si le bookmaker actuel n'a aucune cote disponible,
+  // on choisit celui qui couvre le plus de matchs — réagit quand allOdds change
+  useEffect(()=>{
+    if(!Object.keys(allOdds).length) return;
+    setSelectedBk(prev=>{
+      const hasData=Object.values(allOdds).some(od=>od.bkMap[prev]);
+      if(hasData) return prev;
+      const bkCount:Record<string,number>={};
+      Object.values(allOdds).forEach(od=>Object.keys(od.bkMap).forEach(k=>{bkCount[k]=(bkCount[k]??0)+1;}));
+      const best=Object.entries(bkCount).sort((a,b)=>b[1]-a[1])[0]?.[0];
+      if(best){ localStorage.setItem('sai_bk',best); return best; }
+      return prev;
+    });
+  },[allOdds]);
 
   const loadMatches = useCallback(async(day: string)=>{
     setLoadingMatches(true);
@@ -798,16 +815,6 @@ export default function Home() {
       if(Object.keys(oddsMap).length){
         setAllOdds(oddsMap);
         setOddsAvail(true);
-        // Auto-select first bookmaker that actually has data if current selection is missing
-        setSelectedBk(prev => {
-          const hasData = Object.values(oddsMap).some(od => od.bkMap[prev]);
-          if (hasData) return prev;
-          // Find the bookmaker with most coverage across matches
-          const bkCount: Record<string,number> = {};
-          Object.values(oddsMap).forEach(od => Object.keys(od.bkMap).forEach(k => { bkCount[k]=(bkCount[k]??0)+1; }));
-          const best = Object.entries(bkCount).sort((a,b)=>b[1]-a[1])[0]?.[0];
-          return best ?? prev;
-        });
       } else setAllOdds({});
     } catch(e){ setMatchErr((e as Error).message); }
     setLoadingMatches(false);
