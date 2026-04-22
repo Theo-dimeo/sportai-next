@@ -145,18 +145,56 @@ export function matchOddsToMatch(match: Match, oddsGames: any[]) {
     const awayOdd = out[bestGame.away_team];
     const drawOdd = out['Draw'] ?? null;
     if (homeOdd && awayOdd) {
-      bkMap[bk.key] = { key: bk.key, name: bk.title, home: homeOdd, draw: drawOdd, away: awayOdd };
+      // Extraire totals (Over/Under 2.5, 1.5, 3.5)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totals = bk.markets?.find((mk: any) => mk.key === 'totals');
+      const totalsMap: Record<string, number> = {};
+      if (totals) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        totals.outcomes?.forEach((o: any) => {
+          const key = `${o.name}_${o.point}`; // ex: "Over_2.5", "Under_2.5"
+          totalsMap[key] = parseFloat(Number(o.price).toFixed(2));
+        });
+      }
+      // Extraire BTTS (Les deux équipes marquent)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bttsMarket = bk.markets?.find((mk: any) => mk.key === 'btts');
+      const bttsMap: Record<string, number> = {};
+      if (bttsMarket) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        bttsMarket.outcomes?.forEach((o: any) => {
+          // "Yes" → btts_yes, "No" → btts_no
+          bttsMap[`btts_${o.name.toLowerCase()}`] = parseFloat(Number(o.price).toFixed(2));
+        });
+      }
+      bkMap[bk.key] = {
+        key: bk.key, name: bk.title,
+        home: homeOdd, draw: drawOdd, away: awayOdd,
+        ...totalsMap,
+        ...bttsMap,
+      };
     }
   });
 
   const keys = Object.keys(bkMap);
   if (!keys.length) return null;
 
+  // Agréger les meilleures cotes pour chaque marché
+  const allTotalsKeys = new Set(keys.flatMap(k => Object.keys(bkMap[k]).filter(p => p.startsWith('Over_') || p.startsWith('Under_'))));
+  const bestTotals: Record<string, number> = {};
+  allTotalsKeys.forEach(tk => {
+    const vals = keys.map(k => bkMap[k][tk]).filter(Boolean);
+    if (vals.length) bestTotals[`best_${tk}`] = Math.max(...vals);
+  });
+
   return {
     bkMap,
     bestHome: Math.max(...keys.map(k => bkMap[k].home ?? 0)),
     bestDraw: Math.max(...keys.map(k => bkMap[k].draw ?? 0)),
     bestAway: Math.max(...keys.map(k => bkMap[k].away ?? 0)),
+    bestBttsYes: Math.max(...keys.map(k => bkMap[k].btts_yes ?? 0).filter(Boolean), 0) || null,
+    bestBttsNo:  Math.max(...keys.map(k => bkMap[k].btts_no  ?? 0).filter(Boolean), 0) || null,
+    ...bestTotals,
     // Garder les noms originaux de l'Odds API pour debug
     oddsApiHome: bestGame.home_team,
     oddsApiAway: bestGame.away_team,

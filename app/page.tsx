@@ -239,14 +239,34 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
           {/* Paris secondaires */}
           <div style={sec}>
             <div className='detail-sec-title'>Paris secondaires</div>
-            {(pred.bets??[]).filter((b: {category:string})=>b.category==='value'||b.category==='safe').slice(0,3).map((b: {label:string,prob:number,odds:number,risk:string,tag:string,emoji:string},i: number)=>{
-              const m2=kellyStake(solde,b.prob,b.odds,b.risk);
+            {(pred.bets??[]).filter((b: {category:string})=>b.category==='value'||b.category==='safe').slice(0,3).map((b: {id:string,label:string,shortLabel?:string,prob:number,odds:number,risk:string,tag:string,emoji:string},i: number)=>{
+              // Remplacer la cote IA par la cote bookmaker réelle si disponible
+              let realOdd = b.odds;
+              if (bkOdds) {
+                if (b.id?.includes('_btts') && !b.id?.includes('_o25') && !b.id?.includes('res_btts')) {
+                  const v = bkOdds['btts_yes'] as number|undefined; if (v && v > 0) realOdd = v;
+                } else if (b.id?.includes('btts_o25')) {
+                  const btts = bkOdds['btts_yes'] as number|undefined; const o25 = bkOdds['Over_2.5'] as number|undefined;
+                  if (btts && o25) realOdd = parseFloat((btts * o25 * 0.85).toFixed(2));
+                } else if (b.id?.includes('_o25') || b.label?.includes('Over 2.5')) {
+                  const v = bkOdds['Over_2.5'] as number|undefined; if (v && v > 0) realOdd = v;
+                } else if (b.id?.includes('_u35') || b.label?.includes('Under 3.5')) {
+                  const v = bkOdds['Under_3.5'] as number|undefined; if (v && v > 0) realOdd = v;
+                } else if (b.id?.includes('_o15') || b.label?.includes('Over 1.5')) {
+                  const v = bkOdds['Over_1.5'] as number|undefined; if (v && v > 0) realOdd = v;
+                }
+              }
+              const hasReal = realOdd !== b.odds;
+              const m2=kellyStake(solde,b.prob,realOdd,b.risk);
               return <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#0a0d12',border:'1px solid rgba(255,255,255,.055)',borderRadius:8,padding:'10px 12px',marginBottom:7}}>
                 <div>
                   <div style={{fontSize:13,color:'#fff',fontWeight:500}}>{b.emoji} {b.label}</div>
-                  <div style={{fontSize:11,color:'#8b9ab5',marginTop:2}}>{b.prob}% probabilité{m2?` · Mise: ${m2}€`:''}</div>
+                  <div style={{fontSize:11,color:'#8b9ab5',marginTop:2}}>{b.prob}% probabilité{m2?` · Mise: ${m2}€`:''}{hasReal&&<span style={{color:'#00e676',marginLeft:6,fontSize:10}}>✓ Réelle</span>}</div>
                 </div>
-                <div style={{fontFamily:'Barlow Condensed',fontSize:22,fontWeight:800,color:'#ffd700'}}>{b.odds}</div>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end'}}>
+                  <div style={{fontFamily:'Barlow Condensed',fontSize:22,fontWeight:800,color:hasReal?'#00e676':'#ffd700'}}>{realOdd}</div>
+                  {hasReal&&<div style={{fontSize:10,color:'#4a5568',textDecoration:'line-through'}}>{b.odds}</div>}
+                </div>
               </div>;
             })}
           </div>
@@ -266,7 +286,7 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr>
-                  {['Bookmaker',match.homeTeam.name,'Nul',match.awayTeam.name,...(solde>0?['Mise Kelly','Retour']:[])] .map((h,i)=>(
+                  {['Bookmaker',match.homeTeam.name,'Nul',match.awayTeam.name,'BTTS','O2.5',...(solde>0?['Mise Kelly','Retour']:[])] .map((h,i)=>(
                     <th key={i} style={{fontSize:10,color:'#4a5568',textTransform:'uppercase',letterSpacing:.6,fontWeight:700,padding:'6px 10px',textAlign:i===0?'left':'right',borderBottom:'1px solid rgba(255,255,255,.055)'}}>{h}</th>
                   ))}
                 </tr>
@@ -290,6 +310,21 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
                       const isBestOdd=v!=null&&v===(k==='home'?oddsData?.bestHome:k==='draw'?oddsData?.bestDraw:oddsData?.bestAway);
                       return <td key={k} onClick={()=>pred&&v&&onAddTicket(match,pred,k,bk.key)} style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:16,fontWeight:800,cursor:pred&&v?'pointer':'default',color:isBestOdd?'#00e676':isMyBk?'#ffd700':'#fff',background:isBestOdd?'rgba(0,230,118,.06)':'transparent',borderRadius:5}}>{v??'—'}</td>;
                     })}
+                    {/* BTTS */}
+                    {(()=>{
+                      const v=bk['btts_yes'] as number|undefined;
+                      const best=oddsData?.bestBttsYes;
+                      const isBest=v!=null&&v===best;
+                      return <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:800,color:isBest?'#00e676':'#8b9ab5'}}>{v??'—'}</td>;
+                    })()}
+                    {/* Over 2.5 */}
+                    {(()=>{
+                      const v=bk['Over_2.5'] as number|undefined;
+                      const bestKey='best_Over_2.5';
+                      const best=oddsData?.[bestKey] as number|undefined;
+                      const isBest=v!=null&&v===best;
+                      return <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:800,color:isBest?'#00e676':'#8b9ab5'}}>{v??'—'}</td>;
+                    })()}
                     {solde>0&&<>
                       <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:700,color:'#00e676'}}>{m2?`${m2}€`:'—'}</td>
                       <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:700,color:'#ffd700'}}>{g2?`${g2}€`:'—'}</td>
@@ -299,6 +334,8 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
                 {pred&&<tr style={{borderTop:'2px solid rgba(79,142,247,.15)'}}>
                   <td style={{padding:'8px 10px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><span>🤖</span><span style={{color:'#4f8ef7',fontWeight:600}}>Cotes IA</span></div></td>
                   {(['home','draw','away'] as const).map(k=><td key={k} style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:16,fontWeight:800,color:'#4f8ef7'}}>{pred.odds[k]}</td>)}
+                  <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,color:'#4a5568'}}>—</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,color:'#4a5568'}}>—</td>
                   {solde>0&&<>
                     <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:700,color:'#00e676'}}>{kellyStake(solde,pred.confidence,pred.odds[predKey],pred.riskLevel)??'—'}€</td>
                     <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:700,color:'#ffd700'}}>{(()=>{const m2=kellyStake(solde,pred.confidence,pred.odds[predKey],pred.riskLevel);return m2?`${(m2*pred.odds[predKey]).toFixed(2)}€`:'—';})()}</td>
@@ -579,9 +616,40 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
           if (b.id.includes('_result') || (b.label.includes('Victoire') && !b.label.includes('&') && !b.label.includes('+'))) {
             const pk = m.prediction?.predictionKey;
             const bkVal = pk ? bkOdds[pk] : null;
-            if (bkVal && bkVal > 0) realOdd = bkVal;
+            if (bkVal && bkVal > 0) realOdd = bkVal as number;
           } else if (b.label === 'Match nul') {
             if (bkOdds.draw && bkOdds.draw > 0) realOdd = bkOdds.draw;
+          } else if ((b.id.includes('_btts') && !b.id.includes('_o25') && !b.id.includes('res_btts')) || b.shortLabel === 'BTTS') {
+            const v = bkOdds['btts_yes'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('btts_o25') || b.shortLabel === 'BTTS+O2.5') {
+            // Combo BTTS & Over 2.5 : on calcule la cote combinée si dispo
+            const btts = bkOdds['btts_yes'] as number|undefined;
+            const o25  = bkOdds['Over_2.5'] as number|undefined;
+            if (btts && o25) realOdd = parseFloat((btts * o25 * 0.85).toFixed(2));
+          } else if (b.id.includes('_o25') || b.label?.includes('Over 2.5')) {
+            const v = bkOdds['Over_2.5'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('_u35') || b.label?.includes('Under 3.5')) {
+            const v = bkOdds['Under_3.5'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('_o15') || b.label?.includes('Over 1.5')) {
+            const v = bkOdds['Over_1.5'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('_o35') || b.label?.includes('Over 3.5')) {
+            const v = bkOdds['Over_3.5'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('res_btts')) {
+            // Résultat + BTTS : victoire favorite * btts_yes avec corrélation
+            const pk = m.prediction?.predictionKey;
+            const winOdd = (pk ? bkOdds[pk] : null) as number|null;
+            const btts = bkOdds['btts_yes'] as number|undefined;
+            if (winOdd && btts) realOdd = parseFloat((winOdd * btts * 0.88).toFixed(2));
+          } else if (b.id.includes('res_o15') || b.id.includes('res_cs')) {
+            const pk = m.prediction?.predictionKey;
+            const winOdd = (pk ? bkOdds[pk] : null) as number|null;
+            const o15 = bkOdds['Over_1.5'] as number|undefined;
+            if (winOdd && o15) realOdd = parseFloat((winOdd * o15 * 0.90).toFixed(2));
           }
         }
         // Value indicator : cote réelle vs cote IA

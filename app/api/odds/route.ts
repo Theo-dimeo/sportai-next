@@ -19,11 +19,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // The Odds API — région EU, format décimal, marché 1X2
+    // The Odds API — région EU, format décimal, marchés 1X2 + totaux + BTTS
     const params = new URLSearchParams({
       apiKey:      key,
       regions:     'eu',
-      markets:     'h2h',
+      markets:     'h2h,totals,btts',
       oddsFormat:  'decimal',
     });
 

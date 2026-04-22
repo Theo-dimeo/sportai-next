@@ -67,6 +67,8 @@ export interface BookmakerOdds {
   home: number;
   draw: number | null;
   away: number;
+  // Totals (Over/Under) ex: Over_2.5, Under_2.5, Over_1.5 ...
+  [total: string]: number | string | null;
 }
 
 export interface MatchOddsData {
@@ -74,9 +76,13 @@ export interface MatchOddsData {
   bestHome: number;
   bestDraw: number;
   bestAway: number;
+  bestBttsYes?: number | null;
+  bestBttsNo?: number | null;
   oddsApiHome?: string;
   oddsApiAway?: string;
   matchScore?: number;
+  // Dynamic keys for best totals (best_Over_2.5, best_Under_2.5, etc.)
+  [key: string]: number | string | null | undefined | Record<string, BookmakerOdds>;
 }
 
 export interface BetEntry {
