@@ -72,7 +72,9 @@ function MatchRow({ match, oddsData, selectedBk, selected, onSelect, onAddTicket
   const pred = match.prediction;
   const si = statusInfo(match.status, match.minute);
   const isLive = match.isLive; const isDone = match.isDone;
-  const bkOdds = oddsData?.bkMap?.[selectedBk];
+  const bkOdds = oddsData?.bkMap?.[selectedBk]
+    ?? (oddsData ? Object.values(oddsData.bkMap)[0] : undefined);
+  const isSelectedBk = !!(oddsData?.bkMap?.[selectedBk]);
   const dispOdds = bkOdds ?? pred?.odds;
   const isBest = (k:'home'|'draw'|'away') => {
     if (!oddsData||!bkOdds) return false;
@@ -120,7 +122,7 @@ function MatchRow({ match, oddsData, selectedBk, selected, onSelect, onAddTicket
         {dispOdds&&!isDone?(['home','draw','away'] as const).map((k,i)=>{
           const odd=dispOdds[k]; if(!odd) return null;
           const best=isBest(k); const isPK=pred?.predictionKey===k;
-          return <div key={k} className={`odd-btn${best?' best':''}${isPK?' pick':''}`} onClick={()=>pred&&onAddTicket(match,pred,k,bkOdds?selectedBk:'ai')}><div className='odd-label'>{['1','N','2'][i]}</div><div className='odd-val'>{odd}</div></div>;
+          return <div key={k} className={`odd-btn${best?' best':''}${isPK?' pick':''}`} onClick={()=>pred&&onAddTicket(match,pred,k,bkOdds&&isSelectedBk?selectedBk:bkOdds?.key??'ai')}><div className='odd-label'>{['1','N','2'][i]}</div><div className='odd-val'>{odd}</div></div>;
         }):isDone?<span style={{fontSize:11,color:'var(--text-disabled)',display:'flex',alignItems:'center',fontFamily:'var(--font-mono)'}}>{match.score.home}–{match.score.away}</span>:null}
       </div>
     </div>
@@ -135,13 +137,15 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
   if (!pred&&!match.isDone) return <div style={{display:'flex',justifyContent:'center',padding:40}}><Spinner/></div>;
   const meta = COMPETITIONS[match.competitionId];
   const si = statusInfo(match.status, match.minute);
-  const bkOdds = oddsData?.bkMap?.[selectedBk];
+  const bkOdds = oddsData?.bkMap?.[selectedBk]
+    ?? (oddsData ? Object.values(oddsData.bkMap)[0] : undefined);
+  const isSelectedBk = !!(oddsData?.bkMap?.[selectedBk]);
   const dispOdd = bkOdds ?? pred?.odds;
   const predKey = pred?.predictionKey ?? 'home';
   const theOdd = dispOdd?.[predKey];
   const mise = pred&&theOdd ? kellyStake(solde,pred.confidence,theOdd,pred.riskLevel) : null;
   const gain = mise&&theOdd ? (mise*theOdd-mise).toFixed(2) : null;
-  const bkName = bkOdds ? (BOOKMAKERS.find(b=>b.key===selectedBk)?.name??selectedBk) : 'Modèle IA';
+  const bkName = bkOdds ? (BOOKMAKERS.find(b=>b.key===(isSelectedBk?selectedBk:bkOdds.key))?.name??bkOdds.name??selectedBk) : 'Modèle IA';
   const sec: React.CSSProperties = {padding:'16px 20px',borderBottom:'1px solid rgba(255,255,255,.055)'};
   const stl: React.CSSProperties = {fontSize:10,color:'#4a5568',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:12};
   const bkRows = oddsData ? Object.values(oddsData.bkMap) : [];
@@ -205,7 +209,7 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
                 <div className='mise-box-label'>Kelly ¼</div>
                 <div className='mise-box-val'>{mise}€</div>
                 <div className='mise-box-sub'>+{gain}€ estimé</div>
-                <button className='mise-btn' onClick={()=>onAddTicket(match,pred,predKey,bkOdds?selectedBk:'ai')}>+ Ticket</button>
+                <button className='mise-btn' onClick={()=>onAddTicket(match,pred,predKey,bkOdds?(isSelectedBk?selectedBk:bkOdds.key):'ai')}>+ Ticket</button>
               </div>
             ):(
               <div style={{fontSize:11,color:'var(--text-disabled)',textAlign:'center',minWidth:110,fontFamily:'var(--font-mono)'}}>Solde non défini</div>
@@ -566,7 +570,8 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
     .filter(m => !m.isDone && !m.isLive && m.prediction)
     .flatMap(m => {
       // Cotes réelles du bookmaker sélectionné pour ce match (1X2)
-      const bkOdds = allOdds[m.id]?.bkMap?.[selectedBk];
+      const bkOdds = allOdds[m.id]?.bkMap?.[selectedBk]
+        ?? (allOdds[m.id] ? Object.values(allOdds[m.id].bkMap)[0] : undefined);
       return (m.prediction?.bets ?? []).map(b => {
         // Pour les paris 1X2, remplacer la cote IA par la cote bookmaker réelle
         let realOdd = b.odds; // cote IA par défaut
@@ -672,7 +677,7 @@ export default function Home() {
   const [solde,setSolde] = useState<number>(0);
   const [showBalModal,setShowBalModal] = useState(false);
   const [balInput,setBalInput] = useState('');
-  const [selectedBk,setSelectedBk] = useState('bet365');
+  const [selectedBk,setSelectedBk] = useState('winamax_fr');
   const [history,setHistory] = useState<BetEntry[]>([]);
   const [ticket,setTicket] = useState<TicketItem[]>([]);
   const [showTicket,setShowTicket] = useState(false);
@@ -682,14 +687,14 @@ export default function Home() {
   const [loadingMatches,setLoadingMatches] = useState(true);
   const [oddsAvail,setOddsAvail] = useState(false);
   const [matchErr,setMatchErr] = useState('');
-  const [configStatus,setConfigStatus] = useState<{footballDataConfigured:boolean,oddsApiConfigured:boolean}|null>(null);
+  const [configStatus,setConfigStatus] = useState<{footballData:{configured:boolean},oddsApi:{configured:boolean}}|null>(null);
   const [openLeagues,setOpenLeagues] = useState<Record<string,boolean>>({});
   const detailRef = useRef<HTMLDivElement>(null);
 
   // Hydrate from localStorage
   useEffect(()=>{
     setSolde(parseFloat(localStorage.getItem('sai_solde')??'0'));
-    setSelectedBk(localStorage.getItem('sai_bk')??'bet365');
+    setSelectedBk(localStorage.getItem('sai_bk')??'winamax_fr');
     setHistory(JSON.parse(localStorage.getItem('sai_hist')??'[]'));
   },[]);
 
@@ -722,8 +727,20 @@ export default function Home() {
           }
         }catch(_){}
       }));
-      if(Object.keys(oddsMap).length){ setAllOdds(oddsMap); setOddsAvail(true); }
-      else setAllOdds({});
+      if(Object.keys(oddsMap).length){
+        setAllOdds(oddsMap);
+        setOddsAvail(true);
+        // Auto-select first bookmaker that actually has data if current selection is missing
+        setSelectedBk(prev => {
+          const hasData = Object.values(oddsMap).some(od => od.bkMap[prev]);
+          if (hasData) return prev;
+          // Find the bookmaker with most coverage across matches
+          const bkCount: Record<string,number> = {};
+          Object.values(oddsMap).forEach(od => Object.keys(od.bkMap).forEach(k => { bkCount[k]=(bkCount[k]??0)+1; }));
+          const best = Object.entries(bkCount).sort((a,b)=>b[1]-a[1])[0]?.[0];
+          return best ?? prev;
+        });
+      } else setAllOdds({});
     } catch(e){ setMatchErr((e as Error).message); }
     setLoadingMatches(false);
   },[]);
@@ -815,7 +832,8 @@ export default function Home() {
           <div className='nav-bk-wrap'>
             <span className='nav-bk-label'>Bookmaker</span>
             <select value={selectedBk} onChange={e=>saveBk(e.target.value)} className='nav-bk-select'>
-              {BOOKMAKERS.map(b=><option key={b.key} value={b.key} style={{background:'var(--surface-3)'}}>{b.name}</option>)}
+              {BOOKMAKERS.map(b=>{const hasOdds=Object.values(allOdds).some(od=>od.bkMap[b.key]);return <option key={b.key} value={b.key} style={{background:'var(--surface-3)'}}>{hasOdds?'✓ ':''}{b.emoji} {b.name}</option>;})}
+              {(()=>{const known=new Set(BOOKMAKERS.map(b=>b.key));const extra=new Set(Object.values(allOdds).flatMap(od=>Object.keys(od.bkMap)).filter(k=>!known.has(k)));return [...extra].map(k=><option key={k} value={k} style={{background:'var(--surface-3)'}}>✓ 🎰 {k}</option>);})()}
             </select>
           </div>
           {/* Solde */}
@@ -881,7 +899,7 @@ export default function Home() {
           </div>
 
           {/* Config warning */}
-          {configStatus&&!configStatus.footballDataConfigured&&(
+          {configStatus&&!configStatus.footballData?.configured&&(
             <div style={{background:'var(--red-dim)',border:'1px solid rgba(239,68,68,.18)',borderRadius:'var(--radius-md)',padding:'12px 16px',marginBottom:14,fontSize:13,color:'var(--text-secondary)',lineHeight:1.8}}>
               <strong style={{color:'var(--red)',fontFamily:'var(--font-mono)',fontSize:11}}>FOOTBALL_DATA_KEY manquant</strong><br/> — Vercel → Settings → Environment Variables<br/>
               Clé gratuite : <a href="https://www.football-data.org/client/register" target="_blank" style={{color:'#4f8ef7'}}>football-data.org/client/register</a> · Diagnostic : <a href="/api/status" target="_blank" style={{color:'#4f8ef7'}}>/api/status</a>

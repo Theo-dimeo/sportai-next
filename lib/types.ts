@@ -115,12 +115,14 @@ export const COMPETITIONS: Record<number, {
 };
 
 export const BOOKMAKERS = [
-  { key:'bet365',        name:'Bet365',       emoji:'🟢' },
-  { key:'unibet_eu',     name:'Unibet',        emoji:'⚫' },
-  { key:'betclic',       name:'Betclic',       emoji:'🔴' },
-  { key:'winamax',       name:'Winamax',       emoji:'🟡' },
-  { key:'williamhill',   name:'William Hill',  emoji:'🔵' },
+  { key:'winamax_fr',    name:'Winamax',       emoji:'🟡' },
+  { key:'betclic_fr',    name:'Betclic',       emoji:'🔴' },
+  { key:'unibet_fr',     name:'Unibet',        emoji:'⚫' },
+  { key:'pmu_fr',        name:'PMU',           emoji:'🐴' },
   { key:'pinnacle',      name:'Pinnacle',      emoji:'🟣' },
-  { key:'bwin',          name:'Bwin',          emoji:'🟠' },
   { key:'betfair_ex_eu', name:'Betfair',       emoji:'⚪' },
+  { key:'williamhill',   name:'William Hill',  emoji:'🔵' },
+  { key:'mybookieag',    name:'MyBookie',      emoji:'🟢' },
+  { key:'marathonbet',   name:'Marathon Bet',  emoji:'🟠' },
+  { key:'sport888',      name:'888sport',      emoji:'🔶' },
 ];
