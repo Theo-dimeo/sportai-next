@@ -246,18 +246,31 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
               // Remplacer la cote IA par la cote bookmaker réelle si disponible
               let realOdd = b.odds;
               if (bkOdds) {
-                if (b.id?.includes('_btts') && !b.id?.includes('_o25') && !b.id?.includes('res_btts')) {
-                  // btts non dispo sur ce plan — on laisse la cote IA
-                } else if (b.id?.includes('btts_o25')) {
-                  // btts non dispo — on utilise juste Over 2.5
-                  const o25 = bkOdds['Over_2.5'] as number|undefined;
-                  if (o25 && o25 > 0) realOdd = o25;
+                const h = bkOdds.home as number;
+                const d = bkOdds.draw as number|null;
+                const a = bkOdds.away as number;
+                if (b.id?.includes('_result') || b.label?.includes('Victoire')) {
+                  const pk = match.prediction?.predictionKey;
+                  const v = (pk === 'home' ? h : pk === 'away' ? a : d) as number|null;
+                  if (v && v > 0) realOdd = v;
+                } else if (b.shortLabel === 'Nul' || b.label === 'Match nul') {
+                  if (d && d > 0) realOdd = d;
+                } else if (b.shortLabel === '1X') {
+                  if (h > 0 && d && d > 0) realOdd = parseFloat(Math.min((1/((1/h)+(1/d)))*0.95, h-0.01).toFixed(2));
+                } else if (b.shortLabel === 'X2') {
+                  if (a > 0 && d && d > 0) realOdd = parseFloat(Math.min((1/((1/a)+(1/d)))*0.95, a-0.01).toFixed(2));
+                } else if (b.shortLabel === '1X2') {
+                  if (h > 0 && a > 0) realOdd = parseFloat(Math.min((1/((1/h)+(1/a)))*0.95, Math.min(h,a)-0.01).toFixed(2));
                 } else if (b.id?.includes('_o25') || b.label?.includes('Over 2.5')) {
                   const v = bkOdds['Over_2.5'] as number|undefined; if (v && v > 0) realOdd = v;
                 } else if (b.id?.includes('_u35') || b.label?.includes('Under 3.5')) {
                   const v = bkOdds['Under_3.5'] as number|undefined; if (v && v > 0) realOdd = v;
                 } else if (b.id?.includes('_o15') || b.label?.includes('Over 1.5')) {
                   const v = bkOdds['Over_1.5'] as number|undefined; if (v && v > 0) realOdd = v;
+                } else if (b.id?.includes('_u25') || b.label?.includes('Under 2.5')) {
+                  const v = bkOdds['Under_2.5'] as number|undefined; if (v && v > 0) realOdd = v;
+                } else if (b.id?.includes('btts_o25')) {
+                  const v = bkOdds['Over_2.5'] as number|undefined; if (v && v > 0) realOdd = v;
                 }
               }
               const hasReal = realOdd !== b.odds;
@@ -617,18 +630,38 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
         // Pour les paris 1X2, remplacer la cote IA par la cote bookmaker réelle
         let realOdd = b.odds; // cote IA par défaut
         if (bkOdds) {
-          if (b.id.includes('_result') || (b.label.includes('Victoire') && !b.label.includes('&') && !b.label.includes('+'))) {
+          const h = bkOdds.home as number;
+          const d = bkOdds.draw as number|null;
+          const a = bkOdds.away as number;
+
+          // ── 1X2 direct ──────────────────────────────────────────────
+          if (b.id.includes('_result') || b.label.includes('Victoire')) {
             const pk = m.prediction?.predictionKey;
-            const bkVal = pk ? bkOdds[pk] : null;
-            if (bkVal && bkVal > 0) realOdd = bkVal as number;
-          } else if (b.label === 'Match nul') {
-            if (bkOdds.draw && bkOdds.draw > 0) realOdd = bkOdds.draw;
-          } else if ((b.id.includes('_btts') && !b.id.includes('_o25') && !b.id.includes('res_btts')) || b.shortLabel === 'BTTS') {
-            // btts non dispo sur ce plan — cote IA conservée
-          } else if (b.id.includes('btts_o25') || b.shortLabel === 'BTTS+O2.5') {
-            // btts non dispo — on utilise Over 2.5 seul
-            const o25 = bkOdds['Over_2.5'] as number|undefined;
-            if (o25 && o25 > 0) realOdd = o25;
+            const v = (pk === 'home' ? h : pk === 'away' ? a : d) as number|null;
+            if (v && v > 0) realOdd = v;
+
+          } else if (b.shortLabel === 'Nul' || b.label === 'Match nul') {
+            if (d && d > 0) realOdd = d;
+
+          // ── Double chance — calculée depuis cotes h2h réelles ───────
+          // Formule : cote DC = 1 / (1/A + 1/B) avec déduction marge
+          } else if (b.shortLabel === '1X') {
+            if (h > 0 && d && d > 0) {
+              const implied = (1/h) + (1/d);
+              realOdd = parseFloat(Math.min((1 / implied) * 0.95, h - 0.01).toFixed(2));
+            }
+          } else if (b.shortLabel === 'X2') {
+            if (a > 0 && d && d > 0) {
+              const implied = (1/a) + (1/d);
+              realOdd = parseFloat(Math.min((1 / implied) * 0.95, a - 0.01).toFixed(2));
+            }
+          } else if (b.shortLabel === '1X2') {
+            if (h > 0 && a > 0) {
+              const implied = (1/h) + (1/a);
+              realOdd = parseFloat(Math.min((1 / implied) * 0.95, Math.min(h,a) - 0.01).toFixed(2));
+            }
+
+          // ── Totals ───────────────────────────────────────────────────
           } else if (b.id.includes('_o25') || b.label?.includes('Over 2.5')) {
             const v = bkOdds['Over_2.5'] as number|undefined;
             if (v && v > 0) realOdd = v;
@@ -641,16 +674,30 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
           } else if (b.id.includes('_o35') || b.label?.includes('Over 3.5')) {
             const v = bkOdds['Over_3.5'] as number|undefined;
             if (v && v > 0) realOdd = v;
+          } else if (b.id.includes('_u25') || b.label?.includes('Under 2.5')) {
+            const v = bkOdds['Under_2.5'] as number|undefined;
+            if (v && v > 0) realOdd = v;
+
+          // ── Combos (approximations depuis cotes réelles) ─────────────
+          } else if (b.id.includes('btts_o25') || b.shortLabel === 'BTTS+O2.5') {
+            const o25 = bkOdds['Over_2.5'] as number|undefined;
+            if (o25 && o25 > 0) realOdd = o25;
+          } else if (b.id.includes('_btts')) {
+            // btts non dispo — cote IA conservée
           } else if (b.id.includes('res_btts')) {
-            // btts non dispo — on utilise la cote victoire seule
             const pk = m.prediction?.predictionKey;
-            const winOdd = (pk ? bkOdds[pk] : null) as number|null;
+            const winOdd = (pk === 'home' ? h : pk === 'away' ? a : d) as number|null;
             if (winOdd && winOdd > 0) realOdd = winOdd;
-          } else if (b.id.includes('res_o15') || b.id.includes('res_cs')) {
+          } else if (b.id.includes('res_o15')) {
             const pk = m.prediction?.predictionKey;
-            const winOdd = (pk ? bkOdds[pk] : null) as number|null;
+            const winOdd = (pk === 'home' ? h : pk === 'away' ? a : d) as number|null;
             const o15 = bkOdds['Over_1.5'] as number|undefined;
-            if (winOdd && o15) realOdd = parseFloat((winOdd * o15 * 0.90).toFixed(2));
+            if (winOdd && o15) realOdd = parseFloat((winOdd * o15 * 0.92).toFixed(2));
+          } else if (b.id.includes('res_cs')) {
+            const pk = m.prediction?.predictionKey;
+            const winOdd = (pk === 'home' ? h : pk === 'away' ? a : d) as number|null;
+            const u15 = bkOdds['Under_1.5'] as number|undefined;
+            if (winOdd && u15) realOdd = parseFloat((winOdd * u15 * 0.92).toFixed(2));
           }
         }
         // Value indicator : cote réelle vs cote IA
@@ -667,9 +714,23 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
       });
     });
 
+  // Si des vraies cotes sont dispo pour au moins 1 match, on filtre les paris 100% IA
+  const hasAnyRealOdds = allBets.some(b => b.hasRealOdd);
+
   const filtered = allBets
     .filter(b => b.category === activeCat)
-    .sort((a, b2) => b2.confidence - a.confidence);
+    // Si vraies cotes dispo : masquer les paris sans cote réelle dans safe/value
+    .filter(b => !hasAnyRealOdds || b.hasRealOdd || activeCat === 'combo' || activeCat === 'fun')
+    .sort((a, b2) => {
+      // Priorité 1 : paris avec vraies cotes bookmaker (hasRealOdd)
+      if (a.hasRealOdd !== b2.hasRealOdd) return a.hasRealOdd ? -1 : 1;
+      // Priorité 2 : value bet positif (cote réelle > cote IA = bon signe)
+      const aValue = a.hasRealOdd ? (a.valuePct ?? 0) : 0;
+      const bValue = b2.hasRealOdd ? (b2.valuePct ?? 0) : 0;
+      if (Math.abs(aValue - bValue) > 3) return bValue - aValue;
+      // Priorité 3 : confiance IA
+      return b2.confidence - a.confidence;
+    });
 
   const meta = CAT_META[activeCat];
 

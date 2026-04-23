@@ -100,17 +100,24 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // Résumé lisible directement dans le navigateur
+  // Détail des marchés et points disponibles sur le premier match
+  const firstGame = oddsData[0];
+  const firstBk   = firstGame?.bookmakers?.[0];
+  const marketsDetail = firstBk?.markets?.map((mk: {key:string;outcomes:Array<{name:string;point?:number;price:number}>}) => ({
+    key: mk.key,
+    outcomes: mk.outcomes?.map(o => `${o.name}${o.point!=null?'_'+o.point:''} → ${o.price}`),
+  })) ?? [];
+
   const summary = {
     ok: true,
     competition: comp.name,
     fbMatchCount:    fbMatches.length,
     oddsApiCount:    oddsData.length,
-    marketsReceived: oddsData[0]?.bookmakers?.[0]?.markets?.map((mk: {key:string}) => mk.key) ?? [],
+    marketsReceived: firstBk?.markets?.map((mk: {key:string}) => mk.key) ?? [],
+    marketsDetail,   // ← détail complet avec tous les points disponibles
     creditsLeft:     oddsRes.headers?.get('x-requests-remaining'),
     matchedCount:    results.filter(r => r.matched).length,
     results,
-    // Liste brute des noms Odds API pour comparaison manuelle
     oddsApiTeams:    oddsData.map((g: {home_team:string;away_team:string}) => `${g.home_team} vs ${g.away_team}`),
   };
 
