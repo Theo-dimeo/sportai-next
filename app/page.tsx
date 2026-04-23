@@ -849,8 +849,9 @@ export default function Home() {
       const r = await fetch(`/api/matches?date=${day}`);
       const d = await r.json();
       if (!d.ok){ setMatchErr(d.error??'Erreur'); setLoadingMatches(false); return; }
-      const ms: MatchWithPred[] = d.matches??[];
-      setMatches(ms); setMatchErr('');
+      // Deep-copy pour pouvoir muter les prédictions après enrichissement
+      const ms: MatchWithPred[] = (d.matches??[]).map((m: MatchWithPred) => ({...m}));
+      setMatchErr('');
       setOpenLeagues(prev=>{
         const next={...prev};
         ms.forEach((m:MatchWithPred)=>{ if(next[m.competition]===undefined) next[m.competition]=true; });
@@ -869,17 +870,17 @@ export default function Home() {
               const res=matchOddsToMatch(m,od.odds);
               if(res){
                 oddsMap[m.id]=res;
-                // Recalibrer la prédiction avec les vraies cotes du bookmaker le plus couvrant
+                // Recalibrer la prédiction AVANT setMatches avec les vraies cotes
                 if(m.prediction){
                   const bestBk = Object.values(res.bkMap).reduce((best,bk)=>{
-                    // Préférer le bookmaker avec le plus de marchés (totals + h2h)
                     const bkKeys = Object.keys(bk).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
                     const bestKeys = Object.keys(best).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
                     return bkKeys > bestKeys ? bk : best;
                   }, Object.values(res.bkMap)[0]);
                   if(bestBk?.home && bestBk?.away){
-                    (m as MatchWithPred).prediction = refinePredictionWithOdds(
-                      m.prediction, m.id, m.homeTeam.name, m.awayTeam.name, bestBk as {home:number;draw:number|null;away:number;[k:string]:number|string|null|undefined}
+                    m.prediction = refinePredictionWithOdds(
+                      m.prediction, m.id, m.homeTeam.name, m.awayTeam.name,
+                      bestBk as {home:number;draw:number|null;away:number;[k:string]:number|string|null|undefined}
                     );
                   }
                 }
@@ -888,6 +889,8 @@ export default function Home() {
           }
         }catch(_){}
       }));
+      // setMatches APRÈS enrichissement — prédictions déjà raffinées
+      setMatches(ms);
       if(Object.keys(oddsMap).length){
         setAllOdds(oddsMap);
         setOddsAvail(true);
