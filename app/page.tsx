@@ -6,6 +6,7 @@ import type { Match, Prediction, BetEntry, MatchOddsData } from '@/lib/types';
 import { COMPETITIONS, BOOKMAKERS } from '@/lib/types';
 import { kellyStake } from '@/lib/predictor';
 import { matchOddsToMatch } from '@/lib/parser';
+import { refinePredictionWithOdds } from '@/lib/refiner';
 
 const DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 const DAYS_SHORT = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
@@ -866,16 +867,24 @@ export default function Home() {
           if(od.ok&&od.odds?.length){
             ms.filter(m=>m.competitionId===cid&&!m.isDone).forEach(m=>{
               const res=matchOddsToMatch(m,od.odds);
-              // DEBUG — visible dans la console du navigateur (F12)
-              console.log(`[ODDS] ${m.homeTeam.name} vs ${m.awayTeam.name}`,
-                res
-                  ? `✅ matched (score=${res.matchScore?.toFixed(2)}) bks=[${Object.keys(res.bkMap).join(',')}] home=${Object.values(res.bkMap)[0]?.home}`
-                  : `❌ NO MATCH — odds API teams: ${od.odds.slice(0,3).map((g:Record<string,string>)=>g.home_team+' vs '+g.away_team).join(' | ')}`
-              );
-              if(res) oddsMap[m.id]=res;
+              if(res){
+                oddsMap[m.id]=res;
+                // Recalibrer la prédiction avec les vraies cotes du bookmaker le plus couvrant
+                if(m.prediction){
+                  const bestBk = Object.values(res.bkMap).reduce((best,bk)=>{
+                    // Préférer le bookmaker avec le plus de marchés (totals + h2h)
+                    const bkKeys = Object.keys(bk).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
+                    const bestKeys = Object.keys(best).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
+                    return bkKeys > bestKeys ? bk : best;
+                  }, Object.values(res.bkMap)[0]);
+                  if(bestBk?.home && bestBk?.away){
+                    (m as MatchWithPred).prediction = refinePredictionWithOdds(
+                      m.prediction, m.id, m.homeTeam.name, m.awayTeam.name, bestBk as {home:number;draw:number|null;away:number;[k:string]:number|string|null|undefined}
+                    );
+                  }
+                }
+              }
             });
-          } else {
-            console.warn(`[ODDS] compId=${cid} — ok=${od.ok} reason=${od.reason} oddsLen=${od.odds?.length}`);
           }
         }catch(_){}
       }));
