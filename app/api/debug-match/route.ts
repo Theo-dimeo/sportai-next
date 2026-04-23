@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   // 2. Cotes Odds API avec les 3 marchés
   const oddsRes = await fetch(
-    `https://api.the-odds-api.com/v4/sports/${comp.oddsKey}/odds/?apiKey=${oddsKey}&regions=eu&markets=h2h,totals,btts&oddsFormat=decimal`,
+    `https://api.the-odds-api.com/v4/sports/${comp.oddsKey}/odds/?apiKey=${oddsKey}&regions=eu&markets=h2h,totals&oddsFormat=decimal`,
     { cache: 'no-store' }
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
         bestHome:    matched.bestHome,
         bestDraw:    matched.bestDraw,
         bestAway:    matched.bestAway,
-        bestBttsYes: matched.bestBttsYes,
+        
         bestOver25:  (matched as Record<string,unknown>)['best_Over_2.5'],
       } : null,
     };

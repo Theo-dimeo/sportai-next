@@ -247,10 +247,11 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
               let realOdd = b.odds;
               if (bkOdds) {
                 if (b.id?.includes('_btts') && !b.id?.includes('_o25') && !b.id?.includes('res_btts')) {
-                  const v = bkOdds['btts_yes'] as number|undefined; if (v && v > 0) realOdd = v;
+                  // btts non dispo sur ce plan — on laisse la cote IA
                 } else if (b.id?.includes('btts_o25')) {
-                  const btts = bkOdds['btts_yes'] as number|undefined; const o25 = bkOdds['Over_2.5'] as number|undefined;
-                  if (btts && o25) realOdd = parseFloat((btts * o25 * 0.85).toFixed(2));
+                  // btts non dispo — on utilise juste Over 2.5
+                  const o25 = bkOdds['Over_2.5'] as number|undefined;
+                  if (o25 && o25 > 0) realOdd = o25;
                 } else if (b.id?.includes('_o25') || b.label?.includes('Over 2.5')) {
                   const v = bkOdds['Over_2.5'] as number|undefined; if (v && v > 0) realOdd = v;
                 } else if (b.id?.includes('_u35') || b.label?.includes('Under 3.5')) {
@@ -289,7 +290,7 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr>
-                  {['Bookmaker',match.homeTeam.name,'Nul',match.awayTeam.name,'BTTS','O2.5',...(solde>0?['Mise Kelly','Retour']:[])] .map((h,i)=>(
+                  {['Bookmaker',match.homeTeam.name,'Nul',match.awayTeam.name,'U2.5','O2.5',...(solde>0?['Mise Kelly','Retour']:[])] .map((h,i)=>(
                     <th key={i} style={{fontSize:10,color:'#4a5568',textTransform:'uppercase',letterSpacing:.6,fontWeight:700,padding:'6px 10px',textAlign:i===0?'left':'right',borderBottom:'1px solid rgba(255,255,255,.055)'}}>{h}</th>
                   ))}
                 </tr>
@@ -313,10 +314,10 @@ function MatchDetail({ match, oddsData, solde, selectedBk, onAddTicket }: {
                       const isBestOdd=v!=null&&v===(k==='home'?oddsData?.bestHome:k==='draw'?oddsData?.bestDraw:oddsData?.bestAway);
                       return <td key={k} onClick={()=>pred&&v&&onAddTicket(match,pred,k,bk.key)} style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:16,fontWeight:800,cursor:pred&&v?'pointer':'default',color:isBestOdd?'#00e676':isMyBk?'#ffd700':'#fff',background:isBestOdd?'rgba(0,230,118,.06)':'transparent',borderRadius:5}}>{v??'—'}</td>;
                     })}
-                    {/* BTTS */}
+                    {/* Under 2.5 */}
                     {(()=>{
-                      const v=bk['btts_yes'] as number|undefined;
-                      const best=oddsData?.bestBttsYes;
+                      const v=bk['Under_2.5'] as number|undefined;
+                      const best=(oddsData as Record<string,unknown>)?.['best_Under_2.5'] as number|undefined;
                       const isBest=v!=null&&v===best;
                       return <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'Barlow Condensed',fontSize:14,fontWeight:800,color:isBest?'#00e676':'#8b9ab5'}}>{v??'—'}</td>;
                     })()}
@@ -623,13 +624,11 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
           } else if (b.label === 'Match nul') {
             if (bkOdds.draw && bkOdds.draw > 0) realOdd = bkOdds.draw;
           } else if ((b.id.includes('_btts') && !b.id.includes('_o25') && !b.id.includes('res_btts')) || b.shortLabel === 'BTTS') {
-            const v = bkOdds['btts_yes'] as number|undefined;
-            if (v && v > 0) realOdd = v;
+            // btts non dispo sur ce plan — cote IA conservée
           } else if (b.id.includes('btts_o25') || b.shortLabel === 'BTTS+O2.5') {
-            // Combo BTTS & Over 2.5 : on calcule la cote combinée si dispo
-            const btts = bkOdds['btts_yes'] as number|undefined;
-            const o25  = bkOdds['Over_2.5'] as number|undefined;
-            if (btts && o25) realOdd = parseFloat((btts * o25 * 0.85).toFixed(2));
+            // btts non dispo — on utilise Over 2.5 seul
+            const o25 = bkOdds['Over_2.5'] as number|undefined;
+            if (o25 && o25 > 0) realOdd = o25;
           } else if (b.id.includes('_o25') || b.label?.includes('Over 2.5')) {
             const v = bkOdds['Over_2.5'] as number|undefined;
             if (v && v > 0) realOdd = v;
@@ -643,11 +642,10 @@ function BestBetsPanel({ matches, solde, allOdds, selectedBk, onAddTicket }: Bet
             const v = bkOdds['Over_3.5'] as number|undefined;
             if (v && v > 0) realOdd = v;
           } else if (b.id.includes('res_btts')) {
-            // Résultat + BTTS : victoire favorite * btts_yes avec corrélation
+            // btts non dispo — on utilise la cote victoire seule
             const pk = m.prediction?.predictionKey;
             const winOdd = (pk ? bkOdds[pk] : null) as number|null;
-            const btts = bkOdds['btts_yes'] as number|undefined;
-            if (winOdd && btts) realOdd = parseFloat((winOdd * btts * 0.88).toFixed(2));
+            if (winOdd && winOdd > 0) realOdd = winOdd;
           } else if (b.id.includes('res_o15') || b.id.includes('res_cs')) {
             const pk = m.prediction?.predictionKey;
             const winOdd = (pk ? bkOdds[pk] : null) as number|null;

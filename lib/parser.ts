@@ -156,22 +156,11 @@ export function matchOddsToMatch(match: Match, oddsGames: any[]) {
           totalsMap[key] = parseFloat(Number(o.price).toFixed(2));
         });
       }
-      // Extraire BTTS (Les deux équipes marquent)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bttsMarket = bk.markets?.find((mk: any) => mk.key === 'btts');
-      const bttsMap: Record<string, number> = {};
-      if (bttsMarket) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        bttsMarket.outcomes?.forEach((o: any) => {
-          // "Yes" → btts_yes, "No" → btts_no
-          bttsMap[`btts_${o.name.toLowerCase()}`] = parseFloat(Number(o.price).toFixed(2));
-        });
-      }
+      // Pas de marché btts sur le plan gratuit — on utilise Over/Under seulement
       bkMap[bk.key] = {
         key: bk.key, name: bk.title,
         home: homeOdd, draw: drawOdd, away: awayOdd,
         ...totalsMap,
-        ...bttsMap,
       };
     }
   });
@@ -192,10 +181,7 @@ export function matchOddsToMatch(match: Match, oddsGames: any[]) {
     bestHome: Math.max(...keys.map(k => bkMap[k].home ?? 0)),
     bestDraw: Math.max(...keys.map(k => bkMap[k].draw ?? 0)),
     bestAway: Math.max(...keys.map(k => bkMap[k].away ?? 0)),
-    bestBttsYes: Math.max(...keys.map(k => bkMap[k].btts_yes ?? 0).filter(Boolean), 0) || null,
-    bestBttsNo:  Math.max(...keys.map(k => bkMap[k].btts_no  ?? 0).filter(Boolean), 0) || null,
     ...bestTotals,
-    // Garder les noms originaux de l'Odds API pour debug
     oddsApiHome: bestGame.home_team,
     oddsApiAway: bestGame.away_team,
     matchScore: bestScore,

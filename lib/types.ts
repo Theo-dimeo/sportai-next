@@ -76,8 +76,6 @@ export interface MatchOddsData {
   bestHome: number;
   bestDraw: number;
   bestAway: number;
-  bestBttsYes?: number | null;
-  bestBttsNo?: number | null;
   oddsApiHome?: string;
   oddsApiAway?: string;
   matchScore?: number;

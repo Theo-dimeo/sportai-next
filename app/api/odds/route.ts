@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const params = new URLSearchParams({
       apiKey:      key,
       regions:     'eu',
-      markets:     'h2h,totals,btts',
+      markets:     'h2h,totals',
       oddsFormat:  'decimal',
     });
 
