@@ -821,12 +821,16 @@ export default function Home() {
   const [configStatus,setConfigStatus] = useState<{footballData:{configured:boolean},oddsApi:{configured:boolean}}|null>(null);
   const [openLeagues,setOpenLeagues] = useState<Record<string,boolean>>({});
   const detailRef = useRef<HTMLDivElement>(null);
+  const allOddsRef = useRef<Record<string,MatchOddsData>>({});
 
   // Hydrate from localStorage (solde + history seulement — selectedBk est déjà initialisé)
   useEffect(()=>{
     setSolde(parseFloat(localStorage.getItem('sai_solde')??'0'));
     setHistory(JSON.parse(localStorage.getItem('sai_hist')??'[]'));
   },[]);
+
+  // Synchroniser le ref avec le state (pour accès dans loadMatches sans re-render)
+  useEffect(()=>{ allOddsRef.current = allOdds; },[allOdds]);
 
   // Auto-select bookmaker : si le bookmaker actuel n'a aucune cote disponible,
   // on choisit celui qui couvre le plus de matchs — réagit quand allOdds change
@@ -857,20 +861,18 @@ export default function Home() {
         ms.forEach((m:MatchWithPred)=>{ if(next[m.competition]===undefined) next[m.competition]=true; });
         return next;
       });
-      // Charger les cotes en parallèle
-      const compIds=[...new Set(ms.filter(m=>!m.isDone).map(m=>m.competitionId))];
+      // Charger les cotes en parallèle (uniquement matchs à venir — live gardés du cache)
+      const compIds=[...new Set(ms.filter(m=>!m.isDone&&!m.isLive).map(m=>m.competitionId))];
       const oddsMap:Record<string,MatchOddsData>={};
       await Promise.all(compIds.map(async cid=>{
         try{
-          const isLive = ms.some(m=>m.competitionId===cid&&m.isLive);
-          const ro=await fetch(`/api/odds?compId=${cid}${isLive?'&live=1':''}`);
+          const ro=await fetch(`/api/odds?compId=${cid}`);
           const od=await ro.json();
           if(od.ok&&od.odds?.length){
-            ms.filter(m=>m.competitionId===cid&&!m.isDone).forEach(m=>{
+            ms.filter(m=>m.competitionId===cid&&!m.isDone&&!m.isLive).forEach(m=>{
               const res=matchOddsToMatch(m,od.odds);
               if(res){
                 oddsMap[m.id]=res;
-                // Recalibrer la prédiction AVANT setMatches avec les vraies cotes
                 if(m.prediction){
                   const bestBk = Object.values(res.bkMap).reduce((best,bk)=>{
                     const bkKeys = Object.keys(bk).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
@@ -889,12 +891,33 @@ export default function Home() {
           }
         }catch(_){}
       }));
+      // Pour les matchs live : recalibrer depuis le cache (allOddsRef)
+      ms.filter(m=>m.isLive&&!m.isDone&&m.prediction).forEach(m=>{
+        const cached = allOddsRef.current[m.id];
+        if(cached){
+          oddsMap[m.id] = cached; // conserver dans la fusion
+          const bestBk = Object.values(cached.bkMap).reduce((best,bk)=>{
+            const bkKeys = Object.keys(bk).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
+            const bestKeys = Object.keys(best).filter(k=>k.startsWith('Over_')||k.startsWith('Under_')).length;
+            return bkKeys > bestKeys ? bk : best;
+          }, Object.values(cached.bkMap)[0]);
+          if(bestBk?.home && bestBk?.away && m.prediction){
+            m.prediction = refinePredictionWithOdds(
+              m.prediction, m.id, m.homeTeam.name, m.awayTeam.name,
+              bestBk as {home:number;draw:number|null;away:number;[k:string]:number|string|null|undefined}
+            );
+          }
+        }
+      });
       // setMatches APRÈS enrichissement — prédictions déjà raffinées
       setMatches(ms);
+      // Fusionner avec les cotes existantes : garder les cotes des matchs live
+      // (The Odds API ne renvoie plus les cotes une fois le match commencé)
       if(Object.keys(oddsMap).length){
-        setAllOdds(oddsMap);
+        setAllOdds(prev => ({...prev, ...oddsMap}));
         setOddsAvail(true);
-      } else setAllOdds({});
+      }
+      // Ne pas effacer allOdds si oddsMap vide — les matchs live gardent leurs cotes
     } catch(e){ setMatchErr((e as Error).message); }
     setLoadingMatches(false);
   },[]);
