@@ -878,13 +878,16 @@ export default function Home() {
         try{
           const ro=await fetch(`/api/odds?compId=${cid}`);
           const od=await ro.json();
+          console.log(`[ODDS cid=${cid}] ok=${od.ok} count=${od.odds?.length} reason=${od.reason??''}`);
           if(od.ok&&od.odds?.length){
             ms.filter(m=>m.competitionId===cid&&!m.isDone&&!m.isLive).forEach(m=>{
               const res=matchOddsToMatch(m,od.odds);
+              const sample = od.odds.slice(0,2).map((g:Record<string,string>)=>`${g.home_team}|${g.away_team}`).join(' / ');
+              console.log(`[MATCH] "${m.homeTeam.name}" vs "${m.awayTeam.name}" → ${res?`✅ score=${res.matchScore?.toFixed(2)} bks=${Object.keys(res.bkMap).length}`:`❌ (API: ${sample})`}`);
               if(res) freshOdds[m.id]=res;
             });
           }
-        }catch(_){}
+        }catch(e){ console.error(`[ODDS cid=${cid}] ERROR:`,e); }
       }));
 
       // 3. Fusionner : nouvelles cotes > cache localStorage > rien
