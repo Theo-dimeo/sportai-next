@@ -127,8 +127,9 @@ export function matchOddsToMatch(match: Match, oddsGames: any[]) {
     }
   }
 
-  // Seuil minimal : les deux équipes doivent avoir une similarité raisonnable
-  if (!bestGame || bestScore < 0.9) return null;
+  // Seuil minimal : score sur 2.0 (somme de deux similarités 0-1)
+  // 1.4 = chaque équipe doit avoir ~0.7 de similarité en moyenne
+  if (!bestGame || bestScore < 1.4) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bkMap: Record<string, any> = {};
